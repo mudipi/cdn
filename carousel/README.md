@@ -17,14 +17,14 @@ Compact, dependency-free slider/carousel with RTL support, optional infinite loo
 <script src="picarousel.js"></script>
 
 <!-- or CDN -->
-<script src="https://cdn.example.com/picarousel/1.0.0/picarousel.min.js"></script>
+<script src="https://rawcdn.githack.com/mudipi/cdn/refs/heads/main/carousel/picarousel.js"></script>
 ```
 
 **Live preview:** save the `demo.html` and `demo.css` shown below into the same folder and open `demo.html` in a browser.
 
 **OR**
 
-**HTML Preview:**
+**HTML Preview:** - https://rawcdn.githack.com/mudipi/cdn/refs/heads/main/carousel/html-preview/demo.html
 
 ---
 
@@ -84,7 +84,7 @@ Compact, dependency-free slider/carousel with RTL support, optional infinite loo
   <!-- local -->
   <script src="picarousel.js"></script>
   <!-- or CDN -->
-  <!-- <script src="https://cdn.example.com/picarousel/1.0.0/picarousel.min.js"></script> -->
+  <!-- <script src="https://rawcdn.githack.com/mudipi/cdn/refs/heads/main/carousel/picarousel.js"><script> -->
 
   <script>
     createSlider({
