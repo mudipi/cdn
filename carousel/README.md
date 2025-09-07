@@ -31,15 +31,20 @@ Compact, dependency-free slider/carousel with RTL support, optional infinite loo
 ## Tiny options summary
 
 * `selector` (required) — root selector or element.
+* `trackSelector` — selector for the track container (default `.slider-track`).
+* `slideSelector` — selector for each slide element (default `.slide`).
+* `dotsSelector` — selector for the pagination dots container (default `.slider-dots`).
+* `prevSelector` — selector for the "previous" navigation button (default `.prev`).
+* `nextSelector` — selector for the "next" navigation button (default `.next`).
+* `toggleSelector` — selector for the play/pause toggle button (default `.toggle`).
 * `speed` (ms) — transition duration (default `500`).
 * `delay` (ms) — autoplay delay (default `2000`).
 * `infinite` (bool) — clone-based seamless loop.
 * `loop` (bool) — finite wrap (smooth forward wrap when `true`).
 * `autoplay` (bool) — start autoplay on init.
 * `pauseOnHover` (bool) — pause while pointer is over slider.
+* `easing` — CSS transition-timing-function (default `'ease'`).
 * `direction` — `'ltr'|'rtl'` (visual ordering; RTL reorders DOM internally).
-
-(Other selector options `trackSelector`, `slideSelector`, `dotsSelector`, `prevSelector`, `nextSelector`, `toggleSelector` are also available.)
 
 ---
 
