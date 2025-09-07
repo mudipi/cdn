@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PiCarousel Playground Demo</title>
+  <link rel="stylesheet" href="demo.css">
+</head>
+
+<body>
+  <h1 style="text-align:center">PiCarousel Playground Showcase</h1>
+
+  <!-- Slider 1 -->
+  <h2>Slider 1: Basic autoplay, no infinite loop</h2>
+  <p>
+    <strong>Options:</strong> autoplay: true, infinite: false, direction: ltr, pauseOnHover: false<br>
+    Plays automatically but stops at the last slide.
+  </p>
+  <div class="my-slider1 slider">
+    <div class="slider-track">
+      <div class="slide"><img src="https://picsum.photos/seed/s1-1/800/400" alt="Slide 1"></div>
+      <div class="slide"><img src="https://picsum.photos/seed/s1-2/800/400" alt="Slide 2"></div>
+      <div class="slide"><img src="https://picsum.photos/seed/s1-3/800/400" alt="Slide 3"></div>
+      <div class="slide"><img src="https://picsum.photos/seed/s1-4/800/400" alt="Slide 4"></div>
+      <div class="slide"><img src="https://picsum.photos/seed/s1-6/800/400" alt="Slide 5"></div>
+    </div>
+    <button class="prev">Prev</button>
+    <button class="next">Next</button>
+    <button class="toggle"></button>
+    <div class="slider-dots"></div>
+  </div>
+
+  <!-- Slider 2 -->
+  <h2>Slider 2: Infinite loop + autoplay</h2>
+  <p>
+    <strong>Options:</strong> autoplay: true, infinite: true, direction: ltr<br>
+    Loops seamlessly back to the first slide and keeps playing.
+  </p>
+  <div class="my-slider2 slider">
+    <div class="slider-track">
+      <div class="slide"><img src="https://picsum.photos/seed/s2-1/800/400" alt="Slide 1"></div>
+      <div class="slide"><img src="https://picsum.photos/seed/s2-2/800/400" alt="Slide 2"></div>
+      <div class="slide"><img src="https://picsum.photos/seed/s2-3/800/400" alt="Slide 3"></div>
+      <div class="slide"><img src="https://picsum.photos/seed/s2-4/800/400" alt="Slide 4"></div>
+      <div class="slide"><img src="https://picsum.photos/seed/s2-5/800/400" alt="Slide 5"></div>
+    </div>
+    <button class="prev">Prev</button>
+    <button class="next">Next</button>
+    <button class="toggle"></button>
+    <div class="slider-dots"></div>
+  </div>
+
+  <!-- Slider 3 -->
+  <h2>Slider 3: Infinite autoplay (LTR)</h2>
+  <p>
+    <strong>Options:</strong> autoplay: true, infinite: true, direction: ltr<br>
+    Same as Slider 2 but different images.
+  </p>
+  <div class="my-slider3 slider">
+    <div class="slider-track">
+      <div class="slide"><img src="https://picsum.photos/seed/s3-1/800/400" alt="Slide 1"></div>
+      <div class="slide"><img src="https://picsum.photos/seed/s3-2/800/400" alt="Slide 2"></div>
+      <div class="slide"><img src="https://picsum.photos/seed/s3-3/800/400" alt="Slide 3"></div>
+      <div class="slide"><img src="https://picsum.photos/seed/s3-4/800/400" alt="Slide 4"></div>
+      <div class="slide"><img src="https://picsum.photos/seed/s3-5/800/400" alt="Slide 5"></div>
+    </div>
+    <button class="prev">Prev</button>
+    <button class="next">Next</button>
+    <button class="toggle"></button>
+    <div class="slider-dots"></div>
+  </div>
+
+  <!-- Slider 4 -->
+  <h2>Slider 4: Manual control only (autoplay disabled)</h2>
+  <p>
+    <strong>Options:</strong> autoplay: false, infinite: false, direction: ltr<br>
+    User must click buttons or dots. No auto movement.
+  </p>
+  <div class="my-slider4 slider">
+    <div class="slider-track">
+      <div class="slide"><img src="https://picsum.photos/seed/s4-1/800/400" alt="Slide 1"></div>
+      <div class="slide"><img src="https://picsum.photos/seed/s4-2/800/400" alt="Slide 2"></div>
+      <div class="slide"><img src="https://picsum.photos/seed/s4-3/800/400" alt="Slide 3"></div>
+    </div>
+    <button class="prev">Prev</button>
+    <button class="next">Next</button>
+    <button class="toggle"></button>
+    <div class="slider-dots"></div>
+  </div>
+
+  <!-- Slider 5 -->
+  <h2>Slider 5: RTL direction, infinite autoplay</h2>
+  <p>
+    <strong>Options:</strong> autoplay: true, infinite: true, direction: rtl<br>
+    Scrolls from right to left, looping forever.
+  </p>
+  <div class="my-slider5 slider">
+    <div class="slider-track">
+      <div class="slide"><img src="https://picsum.photos/seed/s5-1/800/400" alt="Slide 1"></div>
+      <div class="slide"><img src="https://picsum.photos/seed/s5-2/800/400" alt="Slide 2"></div>
+      <div class="slide"><img src="https://picsum.photos/seed/s5-3/800/400" alt="Slide 3"></div>
+      <div class="slide"><img src="https://picsum.photos/seed/s5-4/800/400" alt="Slide 4"></div>
+    </div>
+    <button class="prev">Prev</button>
+    <button class="next">Next</button>
+    <button class="toggle"></button>
+    <div class="slider-dots"></div>
+  </div>
+
+  <!-- Slider 6 -->
+  <h2>Slider 6: RTL direction, no autoplay</h2>
+  <p>
+    <strong>Options:</strong> autoplay: false, infinite: false, direction: rtl<br>
+    Manual control, right-to-left, stops at ends.
+  </p>
+  <div class="my-slider6 slider">
+    <div class="slider-track">
+      <div class="slide"><img src="https://picsum.photos/seed/s6-1/800/400" alt="Slide 1"></div>
+      <div class="slide"><img src="https://picsum.photos/seed/s6-2/800/400" alt="Slide 2"></div>
+      <div class="slide"><img src="https://picsum.photos/seed/s6-3/800/400" alt="Slide 3"></div>
+    </div>
+    <button class="prev">Prev</button>
+    <button class="next">Next</button>
+    <button class="toggle"></button>
+    <div class="slider-dots"></div>
+  </div>
+
+  <script src="picarousel.js"></script>
+  <script src="app.js"></script>
+</body>
+
+</html>
