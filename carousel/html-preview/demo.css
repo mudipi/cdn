@@ -116,3 +116,7 @@ body {
 svg > path {
   fill: var(--white-color);
 }
+
+h2, p {
+    text-align: center;
+}
