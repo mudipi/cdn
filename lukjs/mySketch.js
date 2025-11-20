@@ -21,8 +21,8 @@ window.onload = function () {
 function preload() {
 	// LOAD SHADERS FROM WEBFLOW URL
 	theShader = loadShader(
-		"https://raw.githack.com/mudipi/cdn/main/vert.glsl",
-		"https://raw.githack.com/mudipi/cdn/main/frag.glsl"
+		"https://raw.githack.com/mudipi/cdn/main/lukjs/vert.glsl",
+		"https://raw.githack.com/mudipi/cdn/main/lukjs/frag.glsl"
 	);
 
 	// font from CDN
