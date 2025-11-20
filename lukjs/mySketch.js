@@ -43,8 +43,8 @@ function setup() {
 	textGraphic.fill(255);
 	textGraphic.textAlign(LEFT, TOP);
 
-	textGraphic.text("Halftone", 50, 200);
-	textGraphic.text("square", 50, 340);
+	// textGraphic.text("Halftone", 50, 200);
+	// textGraphic.text("square", 50, 340);
 
 	shader(theShader);
 }
