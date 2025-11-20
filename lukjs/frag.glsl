@@ -95,8 +95,9 @@ void main() {
     // -------------------------------------------------------
     vec3 orange = vec3(0.976, 0.365, 0.176);
 
-    // Halftone intensity applied to orange
-    vec3 col = orange * c;
+    // Invert the background: white as base, orange pattern applied
+    vec3 col = mix(vec3(1.0), orange, c); // white background instead of black
 
     gl_FragColor = vec4(col, 1.0);
 }
+
