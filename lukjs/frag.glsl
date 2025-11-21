@@ -21,8 +21,11 @@ float smin(float d1, float d2, float k) {
 void main() {
     vec2 uv = gl_FragCoord.xy / u_resolution.xy;
     vec2 mouse = u_mouse / u_resolution.xy;
-    
-    vec2 gv = fract(uv * u_tile_amount + .25);
+
+    // fix aspect ratio
+    float aspect = u_resolution.x / u_resolution.y;
+    vec2 gv = fract(vec2(uv.x * aspect, uv.y) * u_tile_amount + 0.25);
+
     
     float box1 = distance(gv, vec2(0., 1.));
     float box3 = distance(gv, vec2(1., 1.));
