@@ -93,10 +93,11 @@ void main() {
     // -------------------------------------------------------
     // ORANGE COLOR (#f95d2d)
     // -------------------------------------------------------
-    vec3 orange = vec3(0.976, 0.365, 0.176);
+    vec3 orange = vec3(0.976, 0.365, 0.176); // #f95d2d
 
-    // Invert the background: white as base, orange pattern applied
-    vec3 col = mix(vec3(1.0), orange, c); // white background instead of black
+    vec3 base = vec3(0.886, 0.266, 0.074); // #e24413
+    vec3 col = mix(base, orange, c);
+
 
     gl_FragColor = vec4(col, 1.0);
 }
