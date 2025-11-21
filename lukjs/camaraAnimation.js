@@ -53,6 +53,7 @@ let video;
 let sobelShader;
 let lastTap = 0;  // Store the time of the last tap
 let tapThreshold = 200;  // Set the threshold for double-tap in milliseconds
+let parentDiv;
 
 async function getCameras() {
   const devices = await navigator.mediaDevices.enumerateDevices();
@@ -62,13 +63,28 @@ async function getCameras() {
 function setup() {
   getCameras().then(() => {
     if (cameras.length > 0) {
+
+      parentDiv = document.getElementById("canvas-wrapper");
+
+      let w = parentDiv.clientWidth;
+      let h = parentDiv.clientHeight;
+
       createVideoStream();
-      createCanvas(800, 600, WEBGL);
+      let cnv = createCanvas(w, h, WEBGL);
+      cnv.parent(parentDiv);  // attach canvas inside div
+
       sobelShader = createShader(vert, sobelShaderSource);
+
     } else {
       console.error("No cameras available");
     }
   });
+}
+
+function windowResized() {
+  let w = parentDiv.clientWidth;
+  let h = parentDiv.clientHeight;
+  resizeCanvas(w, h);
 }
 
 function createVideoStream() {
