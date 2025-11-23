@@ -1,5 +1,5 @@
-window.Webflow ||= [];
-window.Webflow.push(() => {
+// window.Webflow ||= [];
+// window.Webflow.push(() => {
 
   // ---------- ANIM 1 (full restored, Webflow-safe) ----------
   new p5((p) => {
@@ -409,4 +409,4 @@ window.Webflow.push(() => {
 
   }, document.getElementById("canvas-container"));
 
-});
+// });
