@@ -1,139 +1,130 @@
-const anim1 = (p) => {
 
-  let capture;
-  let pixelSize = 8;
-  let cols, rows;
-  let gammaZ = 0.5;
-  let t = 0;
+window.Webflow ||= [];
+window.Webflow.push(() => {
 
-  let BASE_ORANGE;
-  let codeLines = [];
-  let codeLineHeight;
-  let currentLine = 0;
-  let currentChar = 0;
-  let charsPerSecond = 14;
-  let charAccumulator = 0;
-  let codeMarginLeft = 40;
-  let codeMarginBottom = 40;
-  let typingFinished = false;
+  // ========== P5 INSTANCE 1 ==========
+  new p5((p) => {
+    let capture;
+    let pixelSize = 8;
+    let cols, rows;
+    let gammaZ = 0.5;
+    let t = 0;
+    let BASE_ORANGE;
 
-  p.setup = function () {
-    let parent = document.getElementById("canvasWrap");
-    let w = parent.clientWidth;
-    let h = parent.clientHeight;
+    p.setup = function () {
+      const parent = document.getElementById("canvasWrap");
+      const w = parent.clientWidth;
+      const h = parent.clientHeight;
 
-    let c = p.createCanvas(w, h);
-    c.parent("canvasWrap");
+      const c = p.createCanvas(w, h);
+      c.parent("canvasWrap");
 
-    p.frameRate(60);
-    p.colorMode(p.RGBA, 255, 0);
+      p.frameRate(60);
+      BASE_ORANGE = p.color('#f95d2d');
 
-    BASE_ORANGE = p.color('#f95d2d');
+      cols = p.floor(p.width / pixelSize);
+      rows = p.floor(p.height / pixelSize);
 
-    cols = p.floor(p.width / pixelSize);
-    rows = p.floor(p.height / pixelSize);
+      capture = p.createCapture(p.VIDEO, () => {
+        console.log("Camera initialized");
+      });
+      capture.size(cols, rows);
+      capture.hide();
+    };
 
-    capture = p.createCapture(p.VIDEO);
-    capture.size(cols, rows);
-    capture.hide();
+    p.draw = function () {
+      p.clear();
+      drawZordon();
+    };
 
-    p.noStroke();
-    p.textFont("monospace");
-    p.textSize(18);
-    p.textAlign(p.LEFT, p.TOP);
-    codeLineHeight = p.textAscent() + p.textDescent() + 4;
+    function drawZordon() {
+      if (!capture.loadedmetadata) return;
+      capture.loadPixels();
+      if (!capture.pixels.length) return;
 
-    initCodeLines();
-  };
+      let cellW = p.width / cols;
+      let cellH = p.height / rows;
 
-  p.draw = function () {
-    drawSoftDarkBackgroundZ();
-    drawZordonWall();
-  };
+      let orBase = p.red(BASE_ORANGE);
+      let ogBase = p.green(BASE_ORANGE);
+      let obBase = p.blue(BASE_ORANGE);
 
-  function drawZordonWall() {
-    capture.loadPixels();
-    if (!capture.pixels || capture.pixels.length === 0) return;
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          let sx = capture.width - x - 1;
+          let sy = y;
+          let index = (sx + sy * capture.width) * 4;
 
-    let cellW = p.width / cols;
-    let cellH = p.height / rows;
+          let r = capture.pixels[index];
+          let g = capture.pixels[index + 1];
+          let b = capture.pixels[index + 2];
 
-    let orBase = p.red(BASE_ORANGE);
-    let ogBase = p.green(BASE_ORANGE);
-    let obBase = p.blue(BASE_ORANGE);
+          let bright = (r + g + b) / 3;
 
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
+          p.fill(orBase, ogBase, obBase, bright);
+          p.rect(x * cellW, y * cellH, cellW, cellH);
+        }
+      }
+      t += 1;
+    }
+  });
 
-        let sx = capture.width - x - 1;
-        let sy = y;
-        let index = (sx + sy * capture.width) * 4;
+  // ========== P5 INSTANCE 2 ==========
+  new p5((p) => {
+    let particles = [];
 
-        let r = capture.pixels[index];
-        let g = capture.pixels[index + 1];
-        let b = capture.pixels[index + 2];
+    p.setup = function () {
+      const c = p.createCanvas(p.windowWidth, p.windowHeight);
+      c.parent("canvas-container");
 
-        let rawBright = (r + g + b) / 3;
-        let bright = 255 * p.pow((rawBright / 255), gammaZ);
+      p.colorMode(p.HSB, 360, 100, 100, 100);
 
-        let z = p.map(bright, 0, 255, 3, 0);
-        let sizeMult = p.map(bright, 0, 255, 0.5, 1.6);
+      for (let i = 0; i < 150; i++) {
+        particles.push(new Particle());
+      }
+    };
 
-        let cellX = x * cellW;
-        let cellY = y * cellH;
+    p.draw = function () {
+      p.background(14, 82, 98);
 
-        let jitterX = p.map(p.noise(x * 0.1, y * 0.1, t * 0.01), 0, 1, -z * 2, z * 2);
-        let jitterY = p.map(p.noise(x * 0.1 + 100, y * 0.1 + 100, t * 0.01), 0, 1, -z * 2, z * 2);
+      for (let part of particles) {
+        part.update();
+        part.show();
+      }
+    };
 
-        let cx = cellX + cellW * 0.5 + jitterX;
-        let cy = cellY + cellH * 0.5 + jitterY;
+    class Particle {
+      constructor() {
+        this.pos = p.createVector(p.random(p.width), p.random(p.height));
+        this.vel = p5.Vector.random2D().mult(p.random(0.5, 1.5));
+        this.size = p.random(2, 4);
+      }
+      update() {
+        let mouse = p.createVector(p.mouseX, p.mouseY);
+        let dir = p5.Vector.sub(mouse, this.pos);
+        let d = dir.mag();
 
-        let d = p.dist(cx, cy, p.mouseX, p.mouseY);
-        if (d < 150) {
-          let force = (150 - d) / 150;
-          let ang = p.atan2(cy - p.mouseY, cx - p.mouseX);
-          cx += p.cos(ang) * force * 28;
-          cy += p.sin(ang) * force * 28;
+        if (d < 100) {
+          dir.setMag(0.5);
+          this.vel.add(dir);
+          this.vel.limit(3);
         }
 
-        let colR, colG, colB;
-        let whiteAccent = bright > 160;
-
-        if (whiteAccent) {
-          let tCol = p.map(bright, 160, 255, 0.4, 1.0);
-          tCol = p.constrain(tCol, 0.4, 1.0);
-          colR = p.lerp(orBase, 255, tCol);
-          colG = p.lerp(ogBase, 255, tCol);
-          colB = p.lerp(obBase, 255, tCol);
-        } else {
-          let tCol = p.map(bright, 0, 160, 0.2, 1.0);
-          tCol = p.constrain(tCol, 0.2, 1.0);
-          colR = p.lerp(0, orBase, tCol);
-          colG = p.lerp(0, ogBase, tCol * 0.9);
-          colB = p.lerp(0, obBase, tCol * 0.8);
-        }
-
-        let alphaVal = p.map(bright, 0, 255, 50, 255);
-        alphaVal = p.constrain(alphaVal, 40, 255);
-
-        p.fill(0, 0, 0, alphaVal * 0.6);
-        p.rect(cx + 4, cy + 4, cellW * sizeMult, cellH * sizeMult, 2);
-
-        p.fill(colR, colG, colB, alphaVal);
-        p.rect(cx, cy, cellW * sizeMult, cellH * sizeMult, 2);
+        this.pos.add(this.vel);
+        this.edges();
+      }
+      show() {
+        p.noStroke();
+        p.fill(0, 0, 100, 50);
+        p.ellipse(this.pos.x, this.pos.y, this.size);
+      }
+      edges() {
+        if (this.pos.x < 0) this.pos.x = p.width;
+        if (this.pos.x > p.width) this.pos.x = 0;
+        if (this.pos.y < 0) this.pos.y = p.height;
+        if (this.pos.y > p.height) this.pos.y = 0;
       }
     }
+  });
 
-    t += 1;
-  }
-
-  function drawSoftDarkBackgroundZ() {
-    p.clear();
-  }
-
-  function initCodeLines() {
-    codeLines = ["// example"];
-  }
-};
-
-new p5(anim1);
+});
