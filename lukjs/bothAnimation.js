@@ -1,139 +1,350 @@
-const anim1 = (p) => {
+// === KAMERA / ROZPIKSELOWANA ŚCIANA =======================================
 
-  let capture;
-  let pixelSize = 8;
-  let cols, rows;
-  let gammaZ = 0.5;
-  let t = 0;
+let capture;
+let pixelSize = 7;   // większa wartość = większe piksele = szybciej
+let cols;
+let rows;
+let gammaZ = 0.5;
+let t = 0;
 
-  let BASE_ORANGE;
-  let codeLines = [];
-  let codeLineHeight;
-  let currentLine = 0;
-  let currentChar = 0;
-  let charsPerSecond = 14;
-  let charAccumulator = 0;
-  let codeMarginLeft = 40;
-  let codeMarginBottom = 40;
-  let typingFinished = false;
+let BASE_ORANGE; // #f95d2d
 
-  p.setup = function () {
-    let parent = document.getElementById("canvasWrap");
-    let w = parent.clientWidth;
-    let h = parent.clientHeight;
+// === ZIELONY KOD (tylko pisanie, bez scrolla) ==============================
 
-    let c = p.createCanvas(w, h);
-    c.parent("canvasWrap");
+let codeLines = [];
+let codeLineHeight;
+let currentLine = 0;
+let currentChar = 0;
 
-    p.frameRate(60);
-    p.colorMode(p.RGBA, 255, 0);
+// ile znaków na sekundę ma się pisać
+let charsPerSecond = 18;
+let charAccumulator = 0;
 
-    BASE_ORANGE = p.color('#f95d2d');
+let codeMarginLeft = 40;
+let codeMarginBottom = 40;
+let typingFinished = false;
 
-    cols = p.floor(p.width / pixelSize);
-    rows = p.floor(p.height / pixelSize);
+function setup() {
+  let parent = document.getElementById("canvasWrap");
+  let w = parent.clientWidth;
+  let h = parent.clientHeight;
 
-    capture = p.createCapture(p.VIDEO);
-    capture.size(cols, rows);
-    capture.hide();
+  let canvas = createCanvas(w, h);
+  canvas.parent("canvasWrap");
 
-    p.noStroke();
-    p.textFont("monospace");
-    p.textSize(18);
-    p.textAlign(p.LEFT, p.TOP);
-    codeLineHeight = p.textAscent() + p.textDescent() + 4;
+  frameRate(60);
+  colorMode(RGB, 255);
 
-    initCodeLines();
-  };
+  BASE_ORANGE = color('#f95d2d');
 
-  p.draw = function () {
-    drawSoftDarkBackgroundZ();
-    drawZordonWall();
-  };
+  // siatka z pixelSize
+  cols = floor(width / pixelSize);
+  rows = floor(height / pixelSize);
 
-  function drawZordonWall() {
-    capture.loadPixels();
-    if (!capture.pixels || capture.pixels.length === 0) return;
+  // mała kamera do pikselizacji
+  capture = createCapture(VIDEO);
+  capture.size(cols, rows);  // niska rozdzielczość -> mocna pikselizacja
+  capture.hide();
 
-    let cellW = p.width / cols;
-    let cellH = p.height / rows;
+  noStroke();
 
-    let orBase = p.red(BASE_ORANGE);
-    let ogBase = p.green(BASE_ORANGE);
-    let obBase = p.blue(BASE_ORANGE);
+  // konfiguracja tekstu do overlay
+  textFont("monospace");
+  textSize(18);
+  textAlign(LEFT, TOP);
+  codeLineHeight = textAscent() + textDescent() + 4;
 
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
+  initCodeLines(); 
+}
 
-        let sx = capture.width - x - 1;
-        let sy = y;
-        let index = (sx + sy * capture.width) * 4;
+function draw() {
+  drawSoftDarkBackgroundZ();
+  drawZordonWall();
+  drawCodeOverlay();
+}
 
-        let r = capture.pixels[index];
-        let g = capture.pixels[index + 1];
-        let b = capture.pixels[index + 2];
+function drawZordonWall() {
+  capture.loadPixels();
+  if (!capture.pixels || capture.pixels.length === 0) return;
 
-        let rawBright = (r + g + b) / 3;
-        let bright = 255 * p.pow((rawBright / 255), gammaZ);
+  let cellW = width / cols;
+  let cellH = height / rows;
 
-        let z = p.map(bright, 0, 255, 3, 0);
-        let sizeMult = p.map(bright, 0, 255, 0.5, 1.6);
+  let orBase = red(BASE_ORANGE);
+  let ogBase = green(BASE_ORANGE);
+  let obBase = blue(BASE_ORANGE);
 
-        let cellX = x * cellW;
-        let cellY = y * cellH;
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      let sx = capture.width - x - 1;
+      let sy = y;
+      let index = (sx + sy * capture.width) * 4;
+      let r = capture.pixels[index];
+      let g = capture.pixels[index + 1];
+      let b = capture.pixels[index + 2];
+      let rawBright = (r + g + b) / 3;
+      let bright = 255 * pow((rawBright / 255), gammaZ);
 
-        let jitterX = p.map(p.noise(x * 0.1, y * 0.1, t * 0.01), 0, 1, -z * 2, z * 2);
-        let jitterY = p.map(p.noise(x * 0.1 + 100, y * 0.1 + 100, t * 0.01), 0, 1, -z * 2, z * 2);
+      let z = map(bright, 0, 255, 3, 0);
+      let sizeMult = map(bright, 0, 255, 0.5, 1.6);
 
-        let cx = cellX + cellW * 0.5 + jitterX;
-        let cy = cellY + cellH * 0.5 + jitterY;
+      let cellX = x * cellW;
+      let cellY = y * cellH;
 
-        let d = p.dist(cx, cy, p.mouseX, p.mouseY);
-        if (d < 150) {
-          let force = (150 - d) / 150;
-          let ang = p.atan2(cy - p.mouseY, cx - p.mouseX);
-          cx += p.cos(ang) * force * 28;
-          cy += p.sin(ang) * force * 28;
-        }
+      let jitterX = map(
+        noise(x * 0.1, y * 0.1, t * 0.01),
+        0, 1,
+        -z * 2, z * 2
+      );
+      let jitterY = map(
+        noise(x * 0.1 + 100, y * 0.1 + 100, t * 0.01),
+        0, 1,
+        -z * 2, z * 2
+      );
 
-        let colR, colG, colB;
-        let whiteAccent = bright > 160;
+      let cx = cellX + cellW * 0.5 + jitterX;
+      let cy = cellY + cellH * 0.5 + jitterY;
 
-        if (whiteAccent) {
-          let tCol = p.map(bright, 160, 255, 0.4, 1.0);
-          tCol = p.constrain(tCol, 0.4, 1.0);
-          colR = p.lerp(orBase, 255, tCol);
-          colG = p.lerp(ogBase, 255, tCol);
-          colB = p.lerp(obBase, 255, tCol);
-        } else {
-          let tCol = p.map(bright, 0, 160, 0.2, 1.0);
-          tCol = p.constrain(tCol, 0.2, 1.0);
-          colR = p.lerp(0, orBase, tCol);
-          colG = p.lerp(0, ogBase, tCol * 0.9);
-          colB = p.lerp(0, obBase, tCol * 0.8);
-        }
+      let colR, colG, colB;
+      let whiteAccent = bright > 160;
 
-        let alphaVal = p.map(bright, 0, 255, 50, 255);
-        alphaVal = p.constrain(alphaVal, 40, 255);
-
-        p.fill(0, 0, 0, alphaVal * 0.6);
-        p.rect(cx + 4, cy + 4, cellW * sizeMult, cellH * sizeMult, 2);
-
-        p.fill(colR, colG, colB, alphaVal);
-        p.rect(cx, cy, cellW * sizeMult, cellH * sizeMult, 2);
+      if (whiteAccent) {
+        let tCol = map(bright, 160, 255, 0.4, 1.0);
+        tCol = constrain(tCol, 0.4, 1.0);
+        colR = lerp(orBase, 255, tCol);
+        colG = lerp(ogBase, 255, tCol);
+        colB = lerp(obBase, 255, tCol);
+      } else {
+        let tCol = map(bright, 0, 160, 0.2, 1.0);
+        tCol = constrain(tCol, 0.2, 1.0);
+        colR = lerp(0, orBase, tCol);
+        colG = lerp(0, ogBase, tCol * 0.9);
+        colB = lerp(0, obBase, tCol * 0.8);
       }
+
+      let alphaVal = map(bright, 0, 255, 50, 255);
+      alphaVal = constrain(alphaVal, 40, 255);
+
+      fill(0, 0, 0, alphaVal * 0.6);
+      rect(
+        cx + 4,
+        cy + 4,
+        cellW * sizeMult,
+        cellH * sizeMult,
+        2
+      );
+
+      fill(colR, colG, colB, alphaVal);
+      rect(
+        cx,
+        cy,
+        cellW * sizeMult,
+        cellH * sizeMult,
+        2
+      );
+    }
+  }
+
+  t += 1;
+}
+
+function drawSoftDarkBackgroundZ() {
+  background(0, 0, 0);
+
+  push();
+  translate(width / 2, height / 2);
+  noStroke();
+  for (let r = max(width, height) * 1.2; r > 0; r -= 100) {
+    let alpha = map(r, 0, max(width, height) * 1.2, 90, 0);
+    fill(5, 5, 12, alpha);
+    ellipse(0, 0, r * 1.4, r);
+  }
+  pop();
+}
+
+// === ZIELONY KOD – DEFINICJA TEKSTU =======================================
+
+function initCodeLines() {
+  codeLines = [
+    "// particle system diagnostics",
+    "",
+    "const MAX_PARTICLES = 1024;",
+    "const TIME_STEP = 1.0 / 60.0;",
+    "",
+    "class Vec2 {",
+    "  constructor(x, y) {",
+    "    this.x = x;",
+    "    this.y = y;",
+    "  }",
+    "  add(v) {",
+    "    this.x += v.x;",
+    "    this.y += v.y;",
+    "    return this;",
+    "  }",
+    "  scale(s) {",
+    "    this.x *= s;",
+    "    this.y *= s;",
+    "    return this;",
+    "  }",
+    "  lengthSq() {",
+    "    return this.x * this.x + this.y * this.y;",
+    "  }",
+    "}",
+    "",
+    "class Particle {",
+    "  constructor(pos, vel, life) {",
+    "    this.pos = pos;",
+    "    this.vel = vel;",
+    "    this.life = life;",
+    "    this.age = 0;",
+    "    this.alive = true;",
+    "  }",
+    "  step(dt, field) {",
+    "    if (!this.alive) return;",
+    "    const force = field.sample(this.pos);",
+    "    this.vel.add(force.scale(dt));",
+    "    this.pos.add(this.vel.scale(dt));",
+    "    this.age += dt;",
+    "    if (this.age > this.life) {",
+    "      this.alive = false;",
+    "    }",
+    "  }",
+    "}",
+    "",
+    "class VectorField {",
+    "  constructor(seed) {",
+    "    this.seed = seed;",
+    "  }",
+    "  sample(p) {",
+    "    const nx = noise(p.x * 0.01, this.seed);",
+    "    const ny = noise(p.y * 0.01, this.seed + 10);",
+    "    const vx = map(nx, 0, 1, -1.0, 1.0);",
+    "    const vy = map(ny, 0, 1, -1.0, 1.0);",
+    "    return new Vec2(vx, vy);",
+    "  }",
+    "}",
+    "",
+    "class ParticleSystem {",
+    "  constructor() {",
+    "    this.items = [];",
+    "    this.field = new VectorField(42.0);",
+    "  }",
+    "  spawn(pos, count) {",
+    "    for (let i = 0; i < count; i++) {",
+    "      const angle = random(TWO_PI);",
+    "      const speed = random(0.4, 2.2);",
+    "      const vx = cos(angle) * speed;",
+    "      const vy = sin(angle) * speed;",
+    "      const life = random(0.8, 3.0);",
+    "      if (this.items.length >= MAX_PARTICLES) break;",
+    "      this.items.push(",
+    "        new Particle(",
+    "          new Vec2(pos.x, pos.y),",
+    "          new Vec2(vx, vy),",
+    "          life",
+    "        )",
+    "      );",
+    "    }",
+    "  }",
+    "  update(dt) {",
+    "    for (let p of this.items) {",
+    "      p.step(dt, this.field);",
+    "    }",
+    "    this.items = this.items.filter(p => p.alive);",
+    "  }",
+    "  debugStats() {",
+    "    const alive = this.items.length;",
+    "    let totalLife = 0;",
+    "    for (let p of this.items) {",
+    "      totalLife += p.life;",
+    "    }",
+    "    const avgLife = alive > 0 ? totalLife / alive : 0;",
+    "    return { alive, avgLife };",
+    "  }",
+    "}",
+    "",
+    "let system = new ParticleSystem();",
+    "let accumulator = 0.0;",
+    "",
+    "function updateSimulation(dt) {",
+    "  accumulator += dt;",
+    "  while (accumulator >= TIME_STEP) {",
+    "    accumulator -= TIME_STEP;",
+    "    const cx = width * 0.5;",
+    "    const cy = height * 0.4;",
+    "    if (system.items.length < MAX_PARTICLES) {",
+    "      system.spawn(new Vec2(cx, cy), 12);",
+    "    }",
+    "    system.update(TIME_STEP);",
+    "  }",
+    "}",
+    "",
+    "function debugLog(frameTime) {",
+    "  const stats = system.debugStats();",
+    "  console.log(",
+    "    '[frame]', frameTime.toFixed(3),",
+    "    'alive:', stats.alive,",
+    "    'avgLife:', stats.avgLife.toFixed(2)",
+    "  );",
+    "}",
+    "",
+    "// end of particle system diagnostics"
+  ];
+
+  currentLine = 0;
+  currentChar = 0;
+  typingFinished = false;
+  charAccumulator = 0;
+}
+
+// === ZIELONY KOD – RYSOWANIE OD DOŁU W GÓRĘ ===============================
+
+function drawCodeOverlay() {
+  push();
+  textFont("monospace");
+  textSize(18);
+  textAlign(LEFT, TOP);
+  fill(0, 255, 70);
+
+  if (!typingFinished) {
+    charAccumulator += (deltaTime / 1000) * charsPerSecond;
+
+    while (charAccumulator >= 1 && !typingFinished) {
+      let lineText = codeLines[currentLine];
+      currentChar++;
+      if (currentChar > lineText.length) {
+        currentLine++;
+        currentChar = 0;
+        if (currentLine >= codeLines.length) {
+          typingFinished = true;
+          currentLine = codeLines.length - 1;
+          currentChar = codeLines[currentLine].length;
+          break;
+        }
+      }
+      charAccumulator -= 1;
+    }
+  }
+
+  let baseY = height - codeMarginBottom - codeLineHeight;
+
+  for (let i = 0; i <= currentLine; i++) {
+    let lineIndex = currentLine - i;
+    let fullLine = codeLines[lineIndex];
+    let y = baseY - i * codeLineHeight;
+
+    let toDraw = "";
+
+    if (!typingFinished && lineIndex === currentLine) {
+      toDraw = fullLine.substring(0, currentChar);
+    } else {
+      toDraw = fullLine;
     }
 
-    t += 1;
+    if (toDraw.length > 0 && y > -codeLineHeight && y < height + codeLineHeight) {
+      text(toDraw, codeMarginLeft, y);
+    }
   }
 
-  function drawSoftDarkBackgroundZ() {
-    p.clear();
-  }
-
-  function initCodeLines() {
-    codeLines = ["// example"];
-  }
-};
-
-new p5(anim1);
+  pop();
+}
