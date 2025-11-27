@@ -25,9 +25,9 @@ let codeMarginBottom = 40;
 let typingFinished = false;
 
 function setup() {
-  let widthheight = document.getElementById("canvas-w-h");
-  let w = widthheight.clientWidth;
-  let h = widthheight.clientHeight;
+  let parent = document.getElementById("canvasWrap");
+  let w = parent.clientWidth;
+  let h = parent.clientHeight;
 
   let canvas = createCanvas(w, h);
   canvas.parent("canvasWrap");
@@ -61,9 +61,9 @@ function draw() {
 }
 
 function windowResized() {
-  let widthheight = document.getElementById("canvas-w-h");
-  let w = widthheight.clientWidth;
-  let h = widthheight.clientHeight;
+  let parent = document.getElementById("canvasWrap");
+  let w = parent.clientWidth;
+  let h = parent.clientHeight;
 
   resizeCanvas(w, h);
 
