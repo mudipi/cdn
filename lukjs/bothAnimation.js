@@ -60,19 +60,19 @@ function draw() {
   drawCodeOverlay();
 }
 
-function windowResized() {
-  let widthheight = document.getElementById("canvas-w-h");
-  let w = widthheight.clientWidth;
-  let h = widthheight.clientHeight;
+// function windowResized() {
+//   let widthheight = document.getElementById("canvas-w-h");
+//   let w = widthheight.clientWidth;
+//   let h = widthheight.clientHeight;
 
-  resizeCanvas(w, h);
+//   resizeCanvas(w, h);
 
-  // recompute grid
-  cols = floor(width / pixelSize);
-  rows = floor(height / pixelSize);
+//   // recompute grid
+//   cols = floor(width / pixelSize);
+//   rows = floor(height / pixelSize);
 
-  capture.size(cols, rows);
-}
+//   capture.size(cols, rows);
+// }
 
 
 function drawZordonWall() {
