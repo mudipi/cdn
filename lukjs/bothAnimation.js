@@ -37,41 +37,30 @@ function setup() {
 
   BASE_ORANGE = color('#f95d2d');
 
+  // siatka z pixelSize
   cols = floor(width / pixelSize);
   rows = floor(height / pixelSize);
 
+  // mała kamera do pikselizacji
   capture = createCapture(VIDEO);
-  capture.size(cols, rows);
+  capture.size(cols, rows);  // niska rozdzielczość -> mocna pikselizacja
   capture.hide();
 
   noStroke();
 
+  // konfiguracja tekstu do overlay
   textFont("monospace");
   textSize(18);
   textAlign(LEFT, TOP);
   codeLineHeight = textAscent() + textDescent() + 4;
 
-  initCodeLines();
+  initCodeLines(); 
 }
 
 function draw() {
   drawSoftDarkBackgroundZ();
   drawZordonWall();
   drawCodeOverlay();
-}
-
-function windowResized() {
-  let parent = document.getElementById("canvasWrap");
-  let w = parent.clientWidth;
-  let h = parent.clientHeight;
-
-  resizeCanvas(w, h);
-
-  // recompute grid
-  cols = floor(width / pixelSize);
-  rows = floor(height / pixelSize);
-
-  capture.size(cols, rows);
 }
 
 
