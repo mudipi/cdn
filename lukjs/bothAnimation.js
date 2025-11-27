@@ -25,7 +25,6 @@ let codeMarginBottom = 40;
 let typingFinished = false;
 
 function setup() {
-  let parent = document.getElementById("canvasWrap");
   let widthheight = document.getElementById("canvas-w-h");
   let w = widthheight.clientWidth;
   let h = widthheight.clientHeight;
@@ -38,30 +37,41 @@ function setup() {
 
   BASE_ORANGE = color('#f95d2d');
 
-  // siatka z pixelSize
   cols = floor(width / pixelSize);
   rows = floor(height / pixelSize);
 
-  // mała kamera do pikselizacji
   capture = createCapture(VIDEO);
-  capture.size(cols, rows);  // niska rozdzielczość -> mocna pikselizacja
+  capture.size(cols, rows);
   capture.hide();
 
   noStroke();
 
-  // konfiguracja tekstu do overlay
   textFont("monospace");
   textSize(18);
   textAlign(LEFT, TOP);
   codeLineHeight = textAscent() + textDescent() + 4;
 
-  initCodeLines(); 
+  initCodeLines();
 }
 
 function draw() {
   drawSoftDarkBackgroundZ();
   drawZordonWall();
   drawCodeOverlay();
+}
+
+function windowResized() {
+  let widthheight = document.getElementById("canvas-w-h");
+  let w = widthheight.clientWidth;
+  let h = widthheight.clientHeight;
+
+  resizeCanvas(w, h);
+
+  // recompute grid
+  cols = floor(width / pixelSize);
+  rows = floor(height / pixelSize);
+
+  capture.size(cols, rows);
 }
 
 
