@@ -24,21 +24,10 @@ let codeMarginLeft = 40;
 let codeMarginBottom = 40;
 let typingFinished = false;
 
-function getImageSize(imgId) {
-  let img = document.getElementById(imgId);
-  if (!img) return { w: 300, h: 300 }; // fallback
-
-  return {
-    w: img.naturalWidth,
-    h: img.naturalHeight
-  };
-}
-
 function setup() {
-  // get size from image
-  let imgSize = getImageSize("canvas-w-h-img");  
-  let w = imgSize.w;
-  let h = imgSize.h;
+  let widthheight = document.getElementById("canvas-w-h");
+  let w = widthheight.clientWidth;
+  let h = widthheight.clientHeight;
 
   let canvas = createCanvas(w, h);
   canvas.parent("canvasWrap");
@@ -72,14 +61,16 @@ function draw() {
 }
 
 function windowResized() {
-  let imgSize = getImageSize("canvas-w-h-img");
-  let w = imgSize.w;
-  let h = imgSize.h;
+  let widthheight = document.getElementById("canvas-w-h");
+  let w = widthheight.clientWidth;
+  let h = widthheight.clientHeight;
 
   resizeCanvas(w, h);
 
+  // recompute grid
   cols = floor(width / pixelSize);
   rows = floor(height / pixelSize);
+
   capture.size(cols, rows);
 }
 
