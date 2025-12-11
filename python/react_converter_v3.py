@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
 """
-Advanced Vanilla -> React (Vite) converter v3
+Advanced HTML/CSS/JS -> React (Vite) Converter v4
+Fixed and Enhanced Version
 
 Major improvements:
- - Fixed BeautifulSoup parsing and tag replacement issues
- - Better JSX attribute conversion (including self-closing tags)
- - Improved event handler extraction with proper scope handling
- - Smart CSS class mapping for CSS Modules
- - Better component detection and extraction
- - Proper handling of SVG and special elements
- - Route generation with proper imports
- - Error handling and validation
- - Support for nested components
+ - Fixed BeautifulSoup parsing with proper HTML5 handling
+ - Improved JSX conversion with proper escaping
+ - Better event handler extraction with scope analysis
+ - Enhanced CSS processing (regular + modules)
+ - Smart script conversion and dynamic loading
+ - SVG and special element handling
+ - Inline styles conversion
  - Better TypeScript type generation
- - Improved script loading with error handling
- - Asset copying with path resolution
+ - Improved component detection and extraction
+ - Asset path resolution and copying
+ - Error handling and validation
+ - Support for modern HTML/CSS/JS patterns
 
 Usage:
-  python3 converter_v3.py /path/to/vanilla /path/to/dest --name mysite --ts --css-modules
+  python3 converter_v4.py /path/to/vanilla /path/to/dest --name mysite --ts --css-modules
 """
 
 import os
@@ -29,7 +30,7 @@ import textwrap
 from collections import defaultdict, Counter
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Set
-from bs4 import BeautifulSoup, Tag, NavigableString
+from bs4 import BeautifulSoup, Tag, NavigableString, Comment
 import hashlib
 
 # ---------- Utilities ------------------------------------------------------
@@ -68,9 +69,21 @@ def is_self_closing_tag(tag_name: str) -> bool:
     """Check if HTML tag should be self-closing in JSX"""
     self_closing = {
         'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
-        'link', 'meta', 'param', 'source', 'track', 'wbr'
+        'link', 'meta', 'param', 'source', 'track', 'wbr', 'command',
+        'keygen', 'menuitem'
     }
     return tag_name.lower() in self_closing
+
+
+def escape_jsx_text(text: str) -> str:
+    """Escape text for JSX"""
+    if not text:
+        return text
+    # Only escape opening braces that could be interpreted as expressions
+    # Don't escape if already in expression context
+    text = re.sub(r'(?<!\\)\{', '{{', text)
+    text = re.sub(r'(?<!\\)\}', '}}', text)
+    return text
 
 
 # ---------- JSX Conversion -------------------------------------------------
@@ -86,6 +99,9 @@ EVENT_ATTRS = {
     'onmouseout': 'onMouseOut',
     'onmouseenter': 'onMouseEnter',
     'onmouseleave': 'onMouseLeave',
+    'onmousedown': 'onMouseDown',
+    'onmouseup': 'onMouseUp',
+    'onmousemove': 'onMouseMove',
     'onkeydown': 'onKeyDown',
     'onkeyup': 'onKeyUp',
     'onkeypress': 'onKeyPress',
@@ -95,6 +111,15 @@ EVENT_ATTRS = {
     'onerror': 'onError',
     'onscroll': 'onScroll',
     'onresize': 'onResize',
+    'ondrag': 'onDrag',
+    'ondrop': 'onDrop',
+    'ondragover': 'onDragOver',
+    'ondragstart': 'onDragStart',
+    'ondragend': 'onDragEnd',
+    'onwheel': 'onWheel',
+    'ontouchstart': 'onTouchStart',
+    'ontouchend': 'onTouchEnd',
+    'ontouchmove': 'onTouchMove',
 }
 
 
@@ -104,83 +129,188 @@ class JSXConverter:
     def __init__(self, use_css_modules: bool = False):
         self.use_css_modules = use_css_modules
         self.css_class_map: Dict[str, str] = {}
+        self.handler_placeholders: Dict[str, str] = {}
         
     def convert_attributes(self, tag: Tag) -> None:
         """Convert HTML attributes to JSX format"""
-        if not hasattr(tag, 'attrs'):
+        if not hasattr(tag, 'attrs') or not tag.attrs:
             return
             
-        attrs = dict(tag.attrs)
+        attrs_to_update = {}
+        attrs_to_remove = []
         
-        for old_attr, new_attr in list(attrs.items()):
+        for attr_name, attr_value in list(tag.attrs.items()):
+            # Skip event handlers (processed separately)
+            if attr_name.lower() in EVENT_ATTRS:
+                continue
+            
             # Handle class -> className
-            if old_attr == 'class':
-                classes = tag.attrs.pop('class')
+            if attr_name == 'class':
+                attrs_to_remove.append('class')
+                classes = attr_value if isinstance(attr_value, list) else [attr_value]
                 if self.use_css_modules:
-                    tag.attrs['className'] = self._convert_classes_to_modules(classes)
+                    attrs_to_update['className'] = self._convert_classes_to_modules(classes)
                 else:
-                    tag.attrs['className'] = ' '.join(classes) if isinstance(classes, list) else classes
+                    attrs_to_update['className'] = ' '.join(classes)
             
             # Handle for -> htmlFor
-            elif old_attr == 'for':
-                tag.attrs['htmlFor'] = tag.attrs.pop('for')
+            elif attr_name == 'for':
+                attrs_to_remove.append('for')
+                attrs_to_update['htmlFor'] = attr_value
             
             # Handle tabindex -> tabIndex
-            elif old_attr == 'tabindex':
-                tag.attrs['tabIndex'] = tag.attrs.pop('tabindex')
+            elif attr_name == 'tabindex':
+                attrs_to_remove.append('tabindex')
+                attrs_to_update['tabIndex'] = attr_value
+            
+            # Handle maxlength -> maxLength
+            elif attr_name == 'maxlength':
+                attrs_to_remove.append('maxlength')
+                attrs_to_update['maxLength'] = attr_value
+            
+            # Handle minlength -> minLength
+            elif attr_name == 'minlength':
+                attrs_to_remove.append('minlength')
+                attrs_to_update['minLength'] = attr_value
+            
+            # Handle readonly -> readOnly
+            elif attr_name == 'readonly':
+                attrs_to_remove.append('readonly')
+                attrs_to_update['readOnly'] = True
+            
+            # Handle colspan -> colSpan
+            elif attr_name == 'colspan':
+                attrs_to_remove.append('colspan')
+                attrs_to_update['colSpan'] = attr_value
+            
+            # Handle rowspan -> rowSpan
+            elif attr_name == 'rowspan':
+                attrs_to_remove.append('rowspan')
+                attrs_to_update['rowSpan'] = attr_value
             
             # Handle boolean attributes
-            elif old_attr in ['checked', 'disabled', 'readonly', 'required', 'selected']:
-                if tag.attrs[old_attr] == '' or tag.attrs[old_attr] == old_attr:
-                    tag.attrs[old_attr] = '{true}'
+            elif attr_name in ['checked', 'disabled', 'required', 'selected', 'autofocus', 
+                             'autoplay', 'controls', 'loop', 'muted']:
+                if attr_value == '' or attr_value == attr_name or attr_value is True:
+                    attrs_to_update[attr_name] = True
             
-            # Handle data attributes (keep as-is)
-            elif old_attr.startswith('data-'):
+            # Handle style attribute
+            elif attr_name == 'style' and isinstance(attr_value, str):
+                style_obj = self._parse_inline_style(attr_value)
+                if style_obj:
+                    attrs_to_remove.append('style')
+                    attrs_to_update['style'] = style_obj
+        
+        # Apply updates
+        for attr in attrs_to_remove:
+            if attr in tag.attrs:
+                del tag.attrs[attr]
+        
+        for attr, value in attrs_to_update.items():
+            tag.attrs[attr] = value
+    
+    def _parse_inline_style(self, style_str: str) -> str:
+        """Convert inline CSS to React style object"""
+        if not style_str:
+            return ""
+        
+        styles = {}
+        declarations = style_str.split(';')
+        
+        for decl in declarations:
+            if ':' not in decl:
                 continue
-                
-            # Handle aria attributes (keep as-is)
-            elif old_attr.startswith('aria-'):
+            
+            prop, value = decl.split(':', 1)
+            prop = prop.strip()
+            value = value.strip()
+            
+            if not prop or not value:
                 continue
+            
+            # Convert kebab-case to camelCase
+            prop_parts = prop.split('-')
+            camel_prop = prop_parts[0] + ''.join(p.capitalize() for p in prop_parts[1:])
+            
+            # Handle numeric values
+            if value.replace('.', '').replace('-', '').isdigit():
+                styles[camel_prop] = value
+            else:
+                styles[camel_prop] = f"'{value}'"
+        
+        if not styles:
+            return ""
+        
+        style_pairs = [f"{k}: {v}" for k, v in styles.items()]
+        return "{{ " + ", ".join(style_pairs) + " }}"
     
     def _convert_classes_to_modules(self, classes: List[str]) -> str:
         """Convert CSS classes to CSS module syntax"""
-        if isinstance(classes, str):
-            classes = classes.split()
+        if not classes:
+            return ""
         
         converted = []
         for cls in classes:
-            module_ref = f"styles.{slugify(cls)}"
+            if not cls:
+                continue
+            safe_cls = slugify(cls)
+            module_ref = f"styles.{safe_cls}"
             self.css_class_map[cls] = module_ref
             converted.append(module_ref)
         
-        if len(converted) == 1:
+        if not converted:
+            return ""
+        elif len(converted) == 1:
             return f"{{{converted[0]}}}"
         else:
             return "{`${" + "} ${".join(converted) + "}`}"
     
-    def to_jsx_string(self, element) -> str:
-        """Convert BeautifulSoup element to JSX string"""
+    def to_jsx_string(self, element, indent_level: int = 0) -> str:
+        """Convert BeautifulSoup element to JSX string with proper formatting"""
+        if isinstance(element, Comment):
+            # Convert HTML comments to JSX comments
+            return f"{{/* {element.strip()} */}}"
+        
         if isinstance(element, NavigableString):
-            text = str(element).strip()
-            # Escape curly braces in text content
-            if text:
-                text = text.replace('{', '{{').replace('}', '}}')
+            text = str(element)
+            # Preserve whitespace structure but escape JSX
+            if text.strip():
+                return escape_jsx_text(text)
             return text
         
         if not isinstance(element, Tag):
             return str(element)
         
         tag_name = element.name
+        
+        # Handle special React components
+        if tag_name in ['html', 'body', 'head']:
+            children = ''.join(self.to_jsx_string(child, indent_level) for child in element.children)
+            return children
+        
+        # Build JSX attributes
         attrs_str = self._attrs_to_jsx(element.attrs)
         
         # Handle self-closing tags
-        if is_self_closing_tag(tag_name) and not element.contents:
+        if is_self_closing_tag(tag_name):
             return f"<{tag_name}{attrs_str} />"
         
         # Handle tags with children
-        children = ''.join(self.to_jsx_string(child) for child in element.children)
+        children_jsx = []
+        for child in element.children:
+            child_jsx = self.to_jsx_string(child, indent_level + 1)
+            if child_jsx:
+                children_jsx.append(child_jsx)
         
-        return f"<{tag_name}{attrs_str}>{children}</{tag_name}>"
+        children_str = ''.join(children_jsx)
+        
+        # Handle empty tags
+        if not children_str.strip():
+            if tag_name in ['script', 'style', 'title']:
+                return f"<{tag_name}{attrs_str}></{tag_name}>"
+            return f"<{tag_name}{attrs_str}></{tag_name}>"
+        
+        return f"<{tag_name}{attrs_str}>{children_str}</{tag_name}>"
     
     def _attrs_to_jsx(self, attrs: dict) -> str:
         """Convert attributes dict to JSX attribute string"""
@@ -188,17 +318,42 @@ class JSXConverter:
             return ""
         
         parts = []
-        for key, value in attrs.items():
+        for key, value in sorted(attrs.items()):
+            # Handle handler placeholders
+            if key.startswith('HANDLER_'):
+                handler_ref = self.handler_placeholders.get(key)
+                if handler_ref:
+                    jsx_attr = key.replace('HANDLER_', '')
+                    parts.append(f" {jsx_attr}={{{handler_ref}}}")
+                continue
+            
+            # Handle None or empty
             if value is None or value == '':
+                continue
+            
+            # Handle boolean attributes
+            if value is True:
                 parts.append(f" {key}")
+            elif value is False:
+                continue
+            
+            # Handle list values
             elif isinstance(value, list):
-                parts.append(f' {key}="{" ".join(value)}"')
-            elif key.startswith('HANDLER_'):
-                # Event handler placeholder
-                parts.append(f" {key}")
+                joined = ' '.join(str(v) for v in value if v)
+                if joined:
+                    parts.append(f' {key}="{joined}"')
+            
+            # Handle style objects
+            elif key == 'style' and isinstance(value, str) and value.startswith('{{'):
+                parts.append(f' {key}={value}')
+            
+            # Handle className with CSS modules
+            elif key == 'className' and self.use_css_modules and value.startswith('{'):
+                parts.append(f' {key}={value}')
+            
+            # Handle regular string values
             else:
-                # Escape quotes in attribute values
-                safe_value = str(value).replace('"', '&quot;')
+                safe_value = str(value).replace('"', '&quot;').replace('{', '{{').replace('}', '}}')
                 parts.append(f' {key}="{safe_value}"')
         
         return ''.join(parts)
@@ -213,6 +368,7 @@ class EventHandlerExtractor:
         self.component_name = component_name
         self.handlers: List[Dict] = []
         self.handler_count = 0
+        self.state_vars: Set[str] = set()
     
     def extract_from_tag(self, tag: Tag) -> None:
         """Extract event handlers from a tag"""
@@ -229,6 +385,9 @@ class EventHandlerExtractor:
                 handler_name = f"handle{title_case(self.component_name)}{self.handler_count}"
                 jsx_event = EVENT_ATTRS[attr.lower()]
                 
+                # Analyze code for state variables
+                self._analyze_code_for_state(code)
+                
                 self.handlers.append({
                     'name': handler_name,
                     'jsx_attr': jsx_event,
@@ -236,50 +395,168 @@ class EventHandlerExtractor:
                     'original_attr': attr
                 })
                 
-                # Add placeholder
-                tag.attrs[f'HANDLER_{jsx_event}'] = f'{{{handler_name}}}'
+                # Add placeholder that will be replaced
+                placeholder_key = f'HANDLER_{jsx_event}'
+                tag.attrs[placeholder_key] = handler_name
+    
+    def _analyze_code_for_state(self, code: str) -> None:
+        """Analyze JavaScript code to detect potential state variables"""
+        # Look for common patterns like getElementById, querySelector, etc.
+        patterns = [
+            r'document\.getElementById\(["\']([^"\']+)["\']\)',
+            r'document\.querySelector\(["\']([^"\']+)["\']\)',
+            r'\.value',
+            r'\.checked',
+            r'\.innerHTML',
+        ]
+        
+        for pattern in patterns:
+            matches = re.findall(pattern, code)
+            self.state_vars.update(matches)
     
     def extract_from_tree(self, soup: BeautifulSoup) -> None:
         """Extract handlers from entire tree"""
         for tag in soup.find_all(True):
             self.extract_from_tag(tag)
     
-    def generate_handler_code(self) -> str:
+    def generate_handler_code(self, use_ts: bool = False) -> str:
         """Generate React handler functions"""
         if not self.handlers:
             return ""
         
         code_parts = []
+        
         for handler in self.handlers:
-            # Wrap inline code safely
             inline_code = handler['code'].strip()
             
-            # Try to detect if preventDefault is needed
-            prevent_default = 'submit' in handler['jsx_attr'].lower()
+            # Clean up inline code
+            inline_code = inline_code.rstrip(';')
             
-            func = textwrap.dedent(f"""
-  const {handler['name']} = (event) => {{
-    {('event.preventDefault();' if prevent_default else '')}
+            # Detect if we need preventDefault
+            prevent_default = 'submit' in handler['jsx_attr'].lower() or 'return false' in inline_code.lower()
+            
+            # Convert common DOM operations to React patterns
+            inline_code = self._convert_dom_operations(inline_code)
+            
+            # Type annotation for TypeScript
+            event_type = ': React.MouseEvent' if use_ts else ''
+            if 'Key' in handler['jsx_attr']:
+                event_type = ': React.KeyboardEvent' if use_ts else ''
+            elif 'Change' in handler['jsx_attr'] or 'Input' in handler['jsx_attr']:
+                event_type = ': React.ChangeEvent<HTMLInputElement>' if use_ts else ''
+            
+            func = f"""  const {handler['name']} = (event{event_type}) => {{"""
+            
+            if prevent_default:
+                func += "\n    event.preventDefault();"
+            
+            func += f"""
     try {{
-      {inline_code}
+      {self._indent_code(inline_code, 6)}
     }} catch (error) {{
       console.error('Event handler error in {handler['name']}:', error);
     }}
-  }};
-            """).strip()
+  }};"""
             
             code_parts.append(func)
         
         return '\n\n'.join(code_parts)
     
-    def apply_handlers_to_jsx(self, jsx_string: str) -> str:
-        """Replace handler placeholders in JSX"""
-        for handler in self.handlers:
-            placeholder = f'HANDLER_{handler["jsx_attr"]}="{{{handler["name"]}}}"'
-            replacement = f'{handler["jsx_attr"]}={{{handler["name"]}}}'
-            jsx_string = jsx_string.replace(placeholder, replacement)
+    def _convert_dom_operations(self, code: str) -> str:
+        """Convert common DOM operations to React patterns"""
+        # Convert getElementById to ref access (add comment)
+        code = re.sub(
+            r'document\.getElementById\(["\']([^"\']+)["\']\)',
+            r'/* TODO: Use useRef for \1 */ document.getElementById("\1")',
+            code
+        )
         
-        return jsx_string
+        # Convert querySelector to ref access (add comment)
+        code = re.sub(
+            r'document\.querySelector\(["\']([^"\']+)["\']\)',
+            r'/* TODO: Use useRef */ document.querySelector("\1")',
+            code
+        )
+        
+        # Convert this references to event.currentTarget
+        code = re.sub(r'\bthis\b', 'event.currentTarget', code)
+        
+        return code
+    
+    def _indent_code(self, code: str, spaces: int) -> str:
+        """Indent code block"""
+        indent = ' ' * spaces
+        lines = code.split('\n')
+        return '\n'.join(indent + line if line.strip() else '' for line in lines).strip()
+    
+    def apply_handlers_to_jsx_converter(self, converter: JSXConverter) -> None:
+        """Register handler placeholders with JSX converter"""
+        for handler in self.handlers:
+            placeholder_key = f'HANDLER_{handler["jsx_attr"]}'
+            converter.handler_placeholders[placeholder_key] = handler['name']
+
+
+# ---------- Script Handler -------------------------------------------------
+
+class ScriptHandler:
+    """Handle external and inline scripts"""
+    
+    def __init__(self, component_name: str):
+        self.component_name = component_name
+        self.external_scripts: List[str] = []
+        self.inline_scripts: List[str] = []
+    
+    def generate_use_effect_code(self) -> str:
+        """Generate useEffect code for script loading"""
+        if not self.external_scripts and not self.inline_scripts:
+            return ""
+        
+        code = """
+  useEffect(() => {
+    // Load external scripts
+"""
+        
+        for script_url in self.external_scripts:
+            code += f"""    const script{len(self.external_scripts)} = document.createElement('script');
+    script{len(self.external_scripts)}.src = '{script_url}';
+    script{len(self.external_scripts)}.async = true;
+    document.body.appendChild(script{len(self.external_scripts)});
+"""
+        
+        if self.inline_scripts:
+            code += """
+    // Execute inline scripts
+    try {
+"""
+            for idx, inline in enumerate(self.inline_scripts):
+                code += f"      {self._indent_code(inline, 6)}\n"
+            
+            code += """    } catch (error) {
+      console.error('Script execution error:', error);
+    }
+"""
+        
+        code += """
+    // Cleanup
+    return () => {
+"""
+        
+        for idx in range(len(self.external_scripts)):
+            code += f"      if (script{idx + 1}.parentNode) {{\n"
+            code += f"        script{idx + 1}.parentNode.removeChild(script{idx + 1});\n"
+            code += "      }\n"
+        
+        code += """    };
+  }, []);
+"""
+        
+        return code
+    
+    def _indent_code(self, code: str, spaces: int) -> str:
+        """Indent code block"""
+        indent = ' ' * spaces
+        lines = code.split('\n')
+        return '\n'.join(indent + line if line.strip() else '' for line in lines).strip()
 
 
 # ---------- Component Detection --------------------------------------------
@@ -287,39 +564,49 @@ class EventHandlerExtractor:
 def detect_user_components(soup: BeautifulSoup) -> List[Tuple[Tag, str]]:
     """Detect user-defined components in the HTML"""
     components = []
+    seen = set()
     
     for tag in soup.find_all(True):
         if not hasattr(tag, 'attrs'):
+            continue
+        
+        # Avoid duplicates
+        tag_id = id(tag)
+        if tag_id in seen:
             continue
         
         # Check for explicit component markers
         if tag.get('data-component'):
             name = tag['data-component']
             components.append((tag, name))
+            seen.add(tag_id)
             continue
         
-        # Check for Webflow component markers
+        # Check for Webflow/similar builders
         for attr in tag.attrs.keys():
-            if attr.startswith('data-wf-'):
+            if attr.startswith(('data-wf-', 'data-ix-', 'data-w-')):
                 name = tag.get('id') or tag.get('class', ['Component'])[0]
+                if isinstance(name, list):
+                    name = name[0]
                 components.append((tag, name))
+                seen.add(tag_id)
                 break
         
-        # Check for component-like patterns
+        # Check for semantic component patterns
         classes = ' '.join(tag.get('class', [])).lower()
-        tag_id = (tag.get('id') or '').lower()
+        tag_id_attr = (tag.get('id') or '').lower()
         
-        if any(pattern in classes or pattern in tag_id 
-               for pattern in ['component', 'widget', 'module', 'block']):
+        patterns = ['component', 'widget', 'module', 'block', 'card', 'panel']
+        if any(pattern in classes or pattern in tag_id_attr for pattern in patterns):
             name = tag.get('id') or tag.get('class', ['Component'])[0]
             if isinstance(name, list):
                 name = name[0]
-            components.append((tag, name))
+            if tag_id not in seen:
+                components.append((tag, name))
+                seen.add(tag_id)
     
     return components
 
-
-# ---------- Shared Component Detection ------------------------------------
 
 def detect_shared_components(html_files: Dict[str, BeautifulSoup], 
                             threshold: float = 0.6) -> Dict[str, str]:
@@ -336,20 +623,13 @@ def detect_shared_components(html_files: Dict[str, BeautifulSoup],
     total_pages = len(html_files)
     
     for filename, soup in html_files.items():
-        # Look for header
-        header = soup.find('header')
-        if header:
-            fragments['Header'].append(normalize(str(header)))
-        
-        # Look for footer
-        footer = soup.find('footer')
-        if footer:
-            fragments['Footer'].append(normalize(str(footer)))
-        
-        # Look for nav
-        nav = soup.find('nav')
-        if nav:
-            fragments['Navigation'].append(normalize(str(nav)))
+        # Look for semantic tags
+        for tag_name, component_name in [('header', 'Header'), 
+                                         ('footer', 'Footer'), 
+                                         ('nav', 'Navigation')]:
+            element = soup.find(tag_name)
+            if element:
+                fragments[component_name].append(normalize(str(element)))
     
     shared = {}
     for component_name, instances in fragments.items():
@@ -378,15 +658,26 @@ class ComponentGenerator:
                          is_page: bool = False) -> Tuple[str, List[str]]:
         """Generate a React component from HTML"""
         
-        soup = BeautifulSoup(html, 'html5lib')
-        body = soup.find('body') if is_page else soup
+        soup = BeautifulSoup(html, 'html.parser')
         
-        if body is None:
+        # Find body or use root
+        if is_page:
+            body = soup.find('body')
+            if not body:
+                body = soup
+        else:
             body = soup
+        
+        # Remove comments
+        for comment in body.find_all(string=lambda text: isinstance(text, Comment)):
+            comment.extract()
         
         # Extract event handlers
         handler_extractor = EventHandlerExtractor(name)
         handler_extractor.extract_from_tree(body)
+        
+        # Register handlers with converter
+        handler_extractor.apply_handlers_to_jsx_converter(self.jsx_converter)
         
         # Convert attributes
         for tag in body.find_all(True):
@@ -394,26 +685,33 @@ class ComponentGenerator:
         
         # Convert to JSX
         jsx = self.jsx_converter.to_jsx_string(body)
-        jsx = handler_extractor.apply_handlers_to_jsx(jsx)
         
         # Generate imports
-        imports = ['import React from "react";']
+        imports = ['import React, { useEffect, useState } from "react";']
         
-        if self.options.css_modules:
+        if self.options.css_modules and self.jsx_converter.css_class_map:
             imports.append(f'import styles from "./{name}.module.css";')
         
         if is_page:
             imports.append('import { Helmet } from "react-helmet-async";')
         
         # Generate component code
-        handler_code = handler_extractor.generate_handler_code()
+        handler_code = handler_extractor.generate_handler_code(self.options.ts)
         
-        component_code = f"""
-{chr(10).join(imports)}
+        # State declarations if needed
+        state_code = ""
+        if handler_extractor.state_vars:
+            state_code = "\n  // TODO: Add state for interactive elements\n"
+        
+        # Build component
+        ext = 'tsx' if self.options.ts else 'jsx'
+        type_annotation = ': React.FC' if self.options.ts else ''
+        
+        component_code = f"""{chr(10).join(imports)}
 
-{handler_code}
+const {name}{type_annotation} = () => {{{state_code}
+{handler_code if handler_code else ''}
 
-const {name} = () => {{
   return (
     <>
       {jsx}
@@ -441,8 +739,8 @@ export default {name};
             code, _ = self.generate_component(comp_name, html, is_page=False)
             
             # Replace tag with component usage
-            replacement = BeautifulSoup(f'<{comp_name} />', 'html.parser')
-            tag.replace_with(replacement.contents[0])
+            replacement = soup.new_tag(comp_name)
+            tag.replace_with(replacement)
             
             extracted.append((comp_name, code, raw_name))
         
@@ -458,7 +756,7 @@ class AssetManager:
         self.source_root = Path(source_root)
         self.target_root = Path(target_root)
         self.public_dir = self.target_root / 'public'
-        
+    
     def copy_css(self, href: str, use_modules: bool = False) -> Optional[str]:
         """Copy CSS file and return import path"""
         if href.startswith(('http://', 'https://', '//')):
@@ -467,7 +765,7 @@ class AssetManager:
         source_path = self.source_root / href.lstrip('/')
         
         if not source_path.exists():
-            print(f"Warning: CSS file not found: {source_path}")
+            print(f"  Warning: CSS file not found: {source_path}")
             return None
         
         dest_dir = self.public_dir / 'css'
@@ -484,7 +782,7 @@ class AssetManager:
         
         return f'/css/{filename}'
     
-    def copy_script(self, src: str, page_name: str) -> Optional[str]:
+    def copy_script(self, src: str) -> Optional[str]:
         """Copy JS file and return public path"""
         if src.startswith(('http://', 'https://', '//')):
             return src
@@ -492,124 +790,138 @@ class AssetManager:
         source_path = self.source_root / src.lstrip('/')
         
         if not source_path.exists():
-            print(f"Warning: Script not found: {source_path}")
+            print(f"  Warning: Script not found: {source_path}")
             return None
         
         dest_dir = self.public_dir / 'js'
         ensure_dir(str(dest_dir))
         
-        filename = f"{page_name.lower()}_{source_path.name}"
+        filename = source_path.name
         dest_path = dest_dir / filename
         shutil.copy2(source_path, dest_path)
         
         return f'/js/{filename}'
     
-    def save_inline_script(self, code: str, page_name: str, index: int) -> str:
-        """Save inline script and return public path"""
-        dest_dir = self.public_dir / 'js'
+    def copy_image(self, src: str) -> Optional[str]:
+        """Copy image and return public path"""
+        if src.startswith(('http://', 'https://', '//', 'data:')):
+            return src
+        
+        source_path = self.source_root / src.lstrip('/')
+        
+        if not source_path.exists():
+            return src
+        
+        dest_dir = self.public_dir / 'images'
         ensure_dir(str(dest_dir))
         
-        filename = f"{page_name.lower()}_inline_{index}.js"
+        filename = source_path.name
         dest_path = dest_dir / filename
         
-        write_file(str(dest_path), code)
-        
-        return f'/js/{filename}'
+        try:
+            shutil.copy2(source_path, dest_path)
+            return f'/images/{filename}'
+        except Exception as e:
+            print(f"  Warning: Could not copy image {source_path}: {e}")
+            return src
     
-    def copy_assets(self, asset_dir: str = 'assets') -> None:
-        """Copy entire assets directory"""
-        source_assets = self.source_root / asset_dir
+    def copy_assets(self, asset_dirs: List[str] = None) -> None:
+        """Copy asset directories"""
+        if asset_dirs is None:
+            asset_dirs = ['assets', 'images', 'img', 'fonts', 'media']
         
-        if source_assets.exists():
-            dest_assets = self.public_dir / asset_dir
-            if dest_assets.exists():
-                shutil.rmtree(dest_assets)
-            shutil.copytree(source_assets, dest_assets)
-            print(f"Copied {asset_dir} directory")
+        for asset_dir in asset_dirs:
+            source_assets = self.source_root / asset_dir
+            
+            if source_assets.exists() and source_assets.is_dir():
+                dest_assets = self.public_dir / asset_dir
+                if dest_assets.exists():
+                    shutil.rmtree(dest_assets)
+                shutil.copytree(source_assets, dest_assets)
+                print(f"  ✓ Copied {asset_dir}/ directory")
 
 
 # ---------- Main Conversion Logic ------------------------------------------
 
-def convert_page(html_path: Path, options, asset_manager: AssetManager, 
-                shared_components: Dict[str, str]) -> Dict:
+def convert_page(html_path: Path, options, asset_manager: AssetManager) -> Dict:
     """Convert a single HTML page to React"""
     
-    with open(html_path, 'r', encoding='utf-8') as f:
+    with open(html_path, 'r', encoding='utf-8', errors='ignore') as f:
         content = f.read()
     
-    soup = BeautifulSoup(content, 'html5lib')
+    soup = BeautifulSoup(content, 'html.parser')
     page_name = title_case(html_path.stem)
     
     # Extract metadata
-    head = soup.find('head')
-    title = head.find('title').string if head and head.find('title') else page_name
+    title = "React App"
     meta_tags = []
     
+    head = soup.find('head')
     if head:
+        title_tag = head.find('title')
+        if title_tag and title_tag.string:
+            title = title_tag.string.strip()
+        
         for meta in head.find_all('meta'):
             meta_tags.append(str(meta))
     
+    # Process images
+    for img in soup.find_all('img'):
+        src = img.get('src')
+        if src:
+            new_src = asset_manager.copy_image(src)
+            if new_src:
+                img['src'] = new_src
+    
     # Process CSS
     css_imports = []
-    css_links = []
-    
     if head:
-        for link in head.find_all('link', rel=lambda x: x and 'stylesheet' in x):
+        for link in head.find_all('link', rel=lambda x: x and 'stylesheet' in ' '.join(x) if isinstance(x, list) else x):
             href = link.get('href')
-            if href:
-                if href.startswith(('http://', 'https://')):
-                    css_links.append(str(link))
-                else:
-                    path = asset_manager.copy_css(href, options.css_modules)
-                    if path:
-                        if options.css_modules:
-                            css_imports.append(path)
-                        else:
-                            css_links.append(f'<link rel="stylesheet" href="{path}" />')
+            if href and not href.startswith(('http://', 'https://')):
+                path = asset_manager.copy_css(href, options.css_modules)
+                if path:
+                    css_imports.append(path)
+            link.extract()
     
     # Process scripts
-    scripts = []
+    script_handler = ScriptHandler(page_name)
     
-    if head:
-        for script in head.find_all('script'):
-            src = script.get('src')
-            if src:
-                path = asset_manager.copy_script(src, html_path.stem)
-                if path:
-                    scripts.append(path)
-            elif script.string:
-                path = asset_manager.save_inline_script(script.string, html_path.stem, len(scripts))
-                scripts.append(path)
-    
-    body = soup.find('body')
-    if body:
-        for script in body.find_all('script'):
-            src = script.get('src')
-            if src:
-                path = asset_manager.copy_script(src, html_path.stem)
-                if path:
-                    scripts.append(path)
-            elif script.string:
-                path = asset_manager.save_inline_script(script.string, html_path.stem, len(scripts))
-                scripts.append(path)
-            script.extract()
+    for script in soup.find_all('script'):
+        src = script.get('src')
+        if src:
+            path = asset_manager.copy_script(src)
+            if path:
+                script_handler.external_scripts.append(path)
+        elif script.string:
+            script_handler.inline_scripts.append(script.string)
+        script.extract()
     
     # Generate component
     generator = ComponentGenerator(options)
-    
-    # Extract user components
     user_components = generator.extract_user_components(soup, page_name)
     
-    # Generate page component
-    page_code, _ = generator.generate_component(page_name, str(soup), is_page=True)
+    # Get body content
+    body = soup.find('body')
+    body_html = str(body) if body else str(soup)
+    
+    page_code, _ = generator.generate_component(page_name, body_html, is_page=True)
+    
+    # Add script loading if needed
+    use_effect_code = script_handler.generate_use_effect_code()
+    if use_effect_code:
+        # Insert useEffect before return statement
+        page_code = page_code.replace(
+            '  return (',
+            use_effect_code + '\n  return ('
+        )
     
     return {
         'name': page_name,
         'code': page_code,
         'title': title,
         'meta_tags': meta_tags,
-        'css_links': css_links,
-        'scripts': scripts,
+        'css_imports': css_imports,
         'user_components': user_components,
         'route': '/' if html_path.stem == 'index' else f'/{html_path.stem}'
     }
@@ -625,8 +937,6 @@ def create_project_structure(target_dir: Path, options) -> None:
     (target_dir / 'src' / 'components').mkdir(exist_ok=True)
     (target_dir / 'src' / 'pages').mkdir(exist_ok=True)
     (target_dir / 'public').mkdir(exist_ok=True)
-    (target_dir / 'public' / 'css').mkdir(exist_ok=True)
-    (target_dir / 'public' / 'js').mkdir(exist_ok=True)
     
     # package.json
     package_json = {
@@ -640,24 +950,25 @@ def create_project_structure(target_dir: Path, options) -> None:
             "lint": "eslint src --ext js,jsx,ts,tsx"
         },
         "dependencies": {
-            "react": "^18.2.0",
-            "react-dom": "^18.2.0",
-            "react-router-dom": "^6.20.0",
-            "react-helmet-async": "^2.0.0"
+            "react": "^18.3.1",
+            "react-dom": "^18.3.1",
+            "react-router-dom": "^6.26.0",
+            "react-helmet-async": "^2.0.5"
         },
         "devDependencies": {
-            "vite": "^5.0.0",
-            "@vitejs/plugin-react": "^4.2.0",
-            "@types/react": "^18.2.0" if options.ts else None,
-            "@types/react-dom": "^18.2.0" if options.ts else None,
-            "typescript": "^5.3.0" if options.ts else None
+            "vite": "^5.4.0",
+            "@vitejs/plugin-react": "^4.3.0",
+            "eslint": "^8.57.0",
+            "eslint-plugin-react": "^7.35.0"
         }
     }
     
-    # Remove None values
-    package_json["devDependencies"] = {
-        k: v for k, v in package_json["devDependencies"].items() if v is not None
-    }
+    if options.ts:
+        package_json["devDependencies"].update({
+            "@types/react": "^18.3.0",
+            "@types/react-dom": "^18.3.0",
+            "typescript": "^5.5.0"
+        })
     
     write_file(str(target_dir / 'package.json'), json.dumps(package_json, indent=2))
     
@@ -670,28 +981,31 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     assetsDir: 'static',
-    emptyOutDir: true
+    emptyOutDir: true,
+    sourcemap: true
   },
   publicDir: 'public',
   server: {
     port: 3000,
-    open: true
+    open: true,
+    host: true
   }
 })
 """
     write_file(str(target_dir / 'vite.config.js'), vite_config)
     
     # index.html
-    index_html = """<!DOCTYPE html>
+    index_html = f"""<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>React App</title>
+    <title>{options.name}</title>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <script type="module" src="/src/main.{'tsx' if options.ts else 'jsx'}"></script>
   </body>
 </html>
 """
@@ -717,10 +1031,35 @@ export default defineConfig({
                 "noUnusedParameters": True,
                 "noFallthroughCasesInSwitch": True
             },
-            "include": ["src"],
-            "references": [{"path": "./tsconfig.node.json"}]
+            "include": ["src"]
         }
         write_file(str(target_dir / 'tsconfig.json'), json.dumps(tsconfig, indent=2))
+    
+    # .gitignore
+    gitignore = """# Dependencies
+node_modules
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+
+# Production
+/dist
+/build
+
+# Misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+"""
+    write_file(str(target_dir / '.gitignore'), gitignore)
 
 
 def generate_main_entry(target_dir: Path, pages: List[Dict], options) -> None:
@@ -742,11 +1081,15 @@ def generate_main_entry(target_dir: Path, pages: List[Dict], options) -> None:
     # Generate routes
     routes = []
     for page in pages:
-        routes.append(f'      <Route path="{page["route"]}" element={{<{page["name"]} />}} />')
+        routes.append(f'        <Route path="{page["route"]}" element={{<{page["name"]} />}} />')
+    
+    # Add 404 route
+    if pages:
+        routes.append(f'        <Route path="*" element={{<{pages[0]["name"]} />}} />')
     
     main_code = f"""{chr(10).join(imports)}
 
-const App = () => {{
+const App{': React.FC' if options.ts else ''} = () => {{
   return (
     <HelmetProvider>
       <BrowserRouter>
@@ -758,8 +1101,15 @@ const App = () => {{
   );
 }};
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
+const rootElement = document.getElementById('root');
+if (rootElement) {{
+  const root = ReactDOM.createRoot(rootElement);
+  root.render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+}}
 """
     
     write_file(str(target_dir / 'src' / f'main.{ext}'), main_code)
@@ -769,7 +1119,7 @@ root.render(<App />);
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Advanced Vanilla HTML to React (Vite) Converter v3'
+        description='Advanced HTML/CSS/JS to React Converter v4 (Fixed)'
     )
     parser.add_argument('source', help='Source directory with HTML files')
     parser.add_argument('dest', help='Destination directory')
@@ -777,24 +1127,26 @@ def main():
     parser.add_argument('--ts', action='store_true', help='Use TypeScript')
     parser.add_argument('--css-modules', action='store_true', help='Use CSS Modules')
     parser.add_argument('--no-install', action='store_true', help='Skip npm install')
-    parser.add_argument('--extract-shared', action='store_true', 
-                       help='Extract shared components (header/footer)')
-    parser.add_argument('--threshold', type=float, default=0.6,
-                       help='Threshold for shared component detection')
     
     args = parser.parse_args()
     
     source_dir = Path(args.source)
-    target_dir = Path(args.dest) / args.name
+    target_dir = Path(args.dest)
     
     if not source_dir.exists():
-        print(f"Error: Source directory '{source_dir}' does not exist")
+        print(f"❌ Error: Source directory '{source_dir}' does not exist")
         return
     
-    print(f"Converting {source_dir} -> {target_dir}")
-    print(f"Options: TypeScript={args.ts}, CSS Modules={args.css_modules}")
+    print("="*60)
+    print("Advanced HTML to React Converter v4")
+    print("="*60)
+    print(f"Source: {source_dir}")
+    print(f"Target: {target_dir}")
+    print(f"TypeScript: {'✓' if args.ts else '✗'}")
+    print(f"CSS Modules: {'✓' if args.css_modules else '✗'}")
+    print("="*60)
     
-    # Create project structure
+    # Create options object
     class Options:
         pass
     
@@ -802,170 +1154,164 @@ def main():
     options.name = args.name
     options.ts = args.ts
     options.css_modules = args.css_modules
-    options.extract_shared = args.extract_shared
-    options.threshold = args.threshold
     
+    # Create project structure
+    print("\n📁 Creating project structure...")
     create_project_structure(target_dir, options)
     
     # Initialize asset manager
     asset_manager = AssetManager(str(source_dir), str(target_dir))
-    
-    # Copy assets directory if exists
     asset_manager.copy_assets()
     
     # Find HTML files
     html_files = list(source_dir.glob('*.html'))
     
     if not html_files:
-        print("Error: No HTML files found in source directory")
+        print("❌ Error: No HTML files found")
         return
     
-    print(f"\nFound {len(html_files)} HTML files")
-    
-    # Detect shared components
-    shared_components = {}
-    if options.extract_shared:
-        soups = {f.name: BeautifulSoup(f.read_text(), 'html5lib') 
-                for f in html_files}
-        shared_components = detect_shared_components(soups, options.threshold)
-        
-        if shared_components:
-            print(f"Detected shared components: {', '.join(shared_components.keys())}")
+    print(f"\n🔍 Found {len(html_files)} HTML file(s)")
     
     # Convert pages
     pages = []
+    errors = []
     
     for html_file in html_files:
-        print(f"\nProcessing {html_file.name}...")
+        print(f"\n📄 Processing: {html_file.name}")
         
         try:
-            page_data = convert_page(html_file, options, asset_manager, shared_components)
+            page_data = convert_page(html_file, options, asset_manager)
             pages.append(page_data)
             
             # Write page component
             ext = 'tsx' if options.ts else 'jsx'
             page_path = target_dir / 'src' / 'pages' / f"{page_data['name']}.{ext}"
             write_file(str(page_path), page_data['code'])
+            print(f"  ✓ Created: pages/{page_data['name']}.{ext}")
             
             # Write user components
             for comp_name, comp_code, _ in page_data['user_components']:
                 comp_path = target_dir / 'src' / 'components' / f"{comp_name}.{ext}"
                 write_file(str(comp_path), comp_code)
-                print(f"  Created component: {comp_name}")
-            
-            print(f"  ✓ Converted to {page_data['name']}")
+                print(f"  ✓ Created: components/{comp_name}.{ext}")
             
         except Exception as e:
-            print(f"  ✗ Error converting {html_file.name}: {str(e)}")
+            error_msg = f"Error in {html_file.name}: {str(e)}"
+            errors.append(error_msg)
+            print(f"  ❌ {error_msg}")
             import traceback
             traceback.print_exc()
     
-    # Generate shared components
-    if shared_components:
-        ext = 'tsx' if options.ts else 'jsx'
-        generator = ComponentGenerator(options)
-        
-        for comp_name, html in shared_components.items():
-            code, _ = generator.generate_component(comp_name, html, is_page=False)
-            comp_path = target_dir / 'src' / 'components' / f"{comp_name}.{ext}"
-            write_file(str(comp_path), code)
-            print(f"Created shared component: {comp_name}")
-    
     # Generate main entry
     if pages:
+        print("\n🔧 Generating main entry point...")
         generate_main_entry(target_dir, pages, options)
-        print("\n✓ Generated main entry point")
+        print("  ✓ Created main entry")
     
     # Create README
     readme = f"""# {options.name}
 
-This project was generated using the Advanced Vanilla to React Converter v3.
+Generated with Advanced HTML to React Converter v4
 
-## Getting Started
+## Setup
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
+Install dependencies:
+```bash
+npm install
+```
 
-2. Run development server:
-   ```bash
-   npm run dev
-   ```
+## Development
 
-3. Build for production:
-   ```bash
-   npm run build
-   ```
+Run development server:
+```bash
+npm run dev
+```
+
+## Build
+
+Build for production:
+```bash
+npm run build
+```
 
 ## Project Structure
 
-- `src/pages/` - Page components
-- `src/components/` - Reusable components
-- `public/` - Static assets (CSS, JS, images)
+```
+{options.name}/
+├── src/
+│   ├── pages/          # Page components
+│   ├── components/     # Reusable components
+│   └── main.{('tsx' if options.ts else 'jsx')}        # Entry point
+├── public/             # Static assets
+└── package.json
+```
 
 ## Notes
 
-- Event handlers have been extracted and converted to React patterns
-- CSS {'modules are' if options.css_modules else 'files are'} used for styling
-- All scripts are loaded dynamically via useEffect
-- Review and test interactive features carefully
+- ✅ HTML converted to JSX
+- ✅ CSS {'modules' if options.css_modules else 'files'} imported
+- ✅ Event handlers extracted
+- ✅ Routing configured
+- ⚠️  Review all event handlers for correctness
+- ⚠️  Test interactive features thoroughly
+- ⚠️  Update hardcoded URLs/paths as needed
 
-## Manual Review Needed
+## Manual Review Checklist
 
-1. Check event handlers for correct behavior
-2. Verify CSS class names and styling
-3. Test all interactive elements
-4. Update any hardcoded URLs or paths
-5. Add proper error boundaries
-6. Implement proper state management if needed
+- [ ] Test all forms and interactions
+- [ ] Verify CSS styling
+- [ ] Check responsive behavior
+- [ ] Update environment-specific URLs
+- [ ] Add error boundaries
+- [ ] Implement proper state management
+- [ ] Add loading states
+- [ ] Handle edge cases
+
 """
-    
     write_file(str(target_dir / 'README.md'), readme)
     
     # Install dependencies
     if not args.no_install:
-        print("\n" + "="*60)
-        print("Installing dependencies...")
-        print("="*60)
-        
+        print("\n📦 Installing dependencies...")
         import subprocess
-        import sys
         
         try:
             result = subprocess.run(
                 ['npm', 'install'],
                 cwd=str(target_dir),
                 capture_output=True,
-                text=True
+                text=True,
+                timeout=300
             )
             
             if result.returncode == 0:
-                print("✓ Dependencies installed successfully")
+                print("  ✓ Dependencies installed")
             else:
-                print("✗ npm install failed:")
-                print(result.stderr)
+                print(f"  ⚠️  npm install had issues:\n{result.stderr}")
+        except subprocess.TimeoutExpired:
+            print("  ⚠️  npm install timed out")
         except FileNotFoundError:
-            print("Warning: npm not found. Please install dependencies manually:")
-            print(f"  cd {target_dir}")
-            print("  npm install")
+            print("  ⚠️  npm not found. Install manually:")
+            print(f"     cd {target_dir} && npm install")
         except Exception as e:
-            print(f"Error during npm install: {e}")
+            print(f"  ⚠️  Error during npm install: {e}")
     
     # Print summary
     print("\n" + "="*60)
-    print("CONVERSION COMPLETE")
+    print("✅ CONVERSION COMPLETE")
     print("="*60)
-    print(f"✓ Converted {len(pages)} pages")
-    print(f"✓ Project created at: {target_dir}")
-    print("\nNext steps:")
-    print(f"  1. cd {target_dir}")
+    print(f"✓ Converted: {len(pages)} page(s)")
+    if errors:
+        print(f"⚠️  Errors: {len(errors)}")
+        for error in errors:
+            print(f"   - {error}")
+    print(f"\n📂 Project location: {target_dir}")
+    print("\n🚀 Next steps:")
+    print(f"   cd {target_dir}")
     if args.no_install:
-        print("  2. npm install")
-        print("  3. npm run dev")
-    else:
-        print("  2. npm run dev")
-    print("\n⚠️  Important: Review and test all interactive features!")
+        print("   npm install")
+    print("   npm run dev")
+    print("\n⚠️  Important: Review and test all features!")
     print("="*60)
 
 
